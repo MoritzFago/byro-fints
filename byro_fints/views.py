@@ -731,6 +731,17 @@ class FinTSAccountFetchView(SingleObjectMixin, FinTSClientFormMixin, FormView):
         with self.fints_client(fints_account.login, form) as client:
             with client:
                 transactions = client.get_transactions(sepa_account, form.cleaned_data['fetch_from_date'], date.today())
+                response = transactions
+                if isinstance(response, TransactionResponse):
+                    self._show_transaction_messages(response)
+                elif isinstance(response, NeedTANResponse):
+                    transfer_uuid = self.pause_for_tan_request(client, response)
+
+                    return HttpResponseRedirect(reverse('plugins:byro_fints:finance.fints.login.tan_request',
+                                                            kwargs={'pk': fints_account.login.pk, 'uuid': transfer_uuid}))
+
+                else:
+                    messages.error(self.request, _("Invalid response: {}".format(response)))
                 fints_account.log(self, '.transactions_fetched')
 
         if form.errors:
